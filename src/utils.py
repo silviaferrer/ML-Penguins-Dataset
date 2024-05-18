@@ -1,8 +1,11 @@
-import pandas as pd 
 import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
 from typing import Union
+from sklearn.impute import KNNImputer
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import LabelEncoder
+
 
 def plot_missing_values_greater_than_0(df):
     # Calculate percentage of missing values by column
@@ -35,7 +38,7 @@ def create_numeric_eda(df, fig_height, graphs_per_row=3):
     numeric_date_cols = df.select_dtypes(include=['number', 'datetime64']).columns
 
     # Create histograms for numeric/date variables
-    fig, axes = plt.subplots(
+    _, axes = plt.subplots(
         nrows=(len(numeric_date_cols) + graphs_per_row - 1) // graphs_per_row, 
         ncols=graphs_per_row, 
         figsize=(18, fig_height * ((len(numeric_date_cols) + graphs_per_row - 1) // graphs_per_row))
@@ -51,6 +54,7 @@ def create_numeric_eda(df, fig_height, graphs_per_row=3):
         axes[j].set_visible(False)  # Hide unused subplots
     plt.tight_layout()
     plt.show()
+
 
 def create_factor_eda(df, fig_height, graphs_per_row=3, abbreviate_names: Union[bool, int] = True):
     if isinstance(abbreviate_names, bool): abbvr_length = 10
@@ -81,7 +85,6 @@ def create_factor_eda(df, fig_height, graphs_per_row=3, abbreviate_names: Union[
         axes[j].set_visible(False)  # Hide unused subplots
     plt.tight_layout()
     plt.show()
-
 
 
 def plot_numeric_relationship(data, numeric_var, categorical_var, subplot_position=(1,1,1), abbreviate_names = True):
@@ -181,4 +184,64 @@ def bivariate_w_target_variable(data, numeric_vars: bool=True, target='y', ncols
     plt.tight_layout()
     plt.show()
 
+
+def imputation_knn(df, column, n_neighbors=3):
+    """
+    Imputar los valores NaN en una columna específica utilizando K-Nearest Neighbors.
+
+    :param df: DataFrame de pandas.
+    :param column: Columna para la cual se imputarán los valores NaN.
+    :param n_neighbors: Número de vecinos a considerar en KNN.
+    :return: DataFrame con la columna imputada.
+    """
+    df_column = df[column]
+
+    # Imputación con KNN para la columna 'sex'
+    # Convertir 'sex' a valores numéricos temporales para KNN
+    label_encoder = LabelEncoder()
+    col_encoded = label_encoder.fit_transform(df_column.astype(str))
+    col_encoded = col_encoded.reshape(-1, 1)
+
+    knn_imputer = KNNImputer(n_neighbors=n_neighbors)
+    col_imputed = knn_imputer.fit_transform(col_encoded)
+
+    # Convertir de nuevo los valores imputados a etiquetas originales
+    col_imputed = np.round(col_imputed).astype(int)
+    col_imputed = label_encoder.inverse_transform(col_imputed.ravel())
+
+    # Asignar los valores imputados a la columna original
+    df[column] = col_imputed
+    return df
+
+
+def imputation_random_forest(df, column):
+    cat_cols = df.select_dtypes(exclude=[np.number]).columns
+
+    encoded_columns = {}
+    for col in cat_cols:
+        label_encoder = LabelEncoder()
+        df[col] = label_encoder.fit_transform(df[col].astype(str))
+        encoded_columns[col] = label_encoder
+
+    train_df = df[df[column].notna()]
+    predict_df = df[df[column].isna()]
+
+    if predict_df.empty:
+        return df
+
+    X_train = train_df.drop(columns=[column])
+    y_train = train_df[column]
+
+    rf_regressor = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf_regressor.fit(X_train, y_train)
+
+    X_predict = predict_df.drop(columns=[column])
+    y_predict = rf_regressor.predict(X_predict)
+
+    df.loc[df[column].isna(), column] = y_predict
+
+    for col, encoder in encoded_columns.items():
+        df[col] = encoder.inverse_transform(df[col].astype(int))
+
+    return df
 
