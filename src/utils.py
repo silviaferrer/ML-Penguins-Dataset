@@ -211,7 +211,8 @@ def imputation_knn(df, column, n_neighbors=3):
 
     # Asignar los valores imputados a la columna original
     df[column] = col_imputed
-    return df
+
+    # return df
 
 
 def imputation_random_forest(df, column):
@@ -243,5 +244,4 @@ def imputation_random_forest(df, column):
     for col, encoder in encoded_columns.items():
         df[col] = encoder.inverse_transform(df[col].astype(int))
 
-    return df
-
+    # return df
