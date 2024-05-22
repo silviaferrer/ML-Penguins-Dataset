@@ -2,9 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
 from typing import Union
-from sklearn.impute import KNNImputer
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import confusion_matrix
 
 
 def plot_missing_values_greater_than_0(df):
@@ -185,63 +183,14 @@ def bivariate_w_target_variable(data, numeric_vars: bool=True, target='y', ncols
     plt.show()
 
 
-def imputation_knn(df, column, n_neighbors=3):
-    """
-    Imputar los valores NaN en una columna específica utilizando K-Nearest Neighbors.
+def plot_confusion_matrix(y_test, y_pred, path_output=None):
+    cm = confusion_matrix(y_test, y_pred)
 
-    :param df: DataFrame de pandas.
-    :param column: Columna para la cual se imputarán los valores NaN.
-    :param n_neighbors: Número de vecinos a considerar en KNN.
-    :return: DataFrame con la columna imputada.
-    """
-    df_column = df[column]
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+    plt.xlabel('Predicted')
+    plt.ylabel('Actual')
+    
+    if path_output is not None: 
+        plt.savefig(path_output)
 
-    # Imputación con KNN para la columna 'sex'
-    # Convertir 'sex' a valores numéricos temporales para KNN
-    label_encoder = LabelEncoder()
-    col_encoded = label_encoder.fit_transform(df_column.astype(str))
-    col_encoded = col_encoded.reshape(-1, 1)
-
-    knn_imputer = KNNImputer(n_neighbors=n_neighbors)
-    col_imputed = knn_imputer.fit_transform(col_encoded)
-
-    # Convertir de nuevo los valores imputados a etiquetas originales
-    col_imputed = np.round(col_imputed).astype(int)
-    col_imputed = label_encoder.inverse_transform(col_imputed.ravel())
-
-    # Asignar los valores imputados a la columna original
-    df[column] = col_imputed
-
-    # return df
-
-
-def imputation_random_forest(df, column):
-    cat_cols = df.select_dtypes(exclude=[np.number]).columns
-
-    encoded_columns = {}
-    for col in cat_cols:
-        label_encoder = LabelEncoder()
-        df[col] = label_encoder.fit_transform(df[col].astype(str))
-        encoded_columns[col] = label_encoder
-
-    train_df = df[df[column].notna()]
-    predict_df = df[df[column].isna()]
-
-    if predict_df.empty:
-        return df
-
-    X_train = train_df.drop(columns=[column])
-    y_train = train_df[column]
-
-    rf_regressor = RandomForestRegressor(n_estimators=100, random_state=42)
-    rf_regressor.fit(X_train, y_train)
-
-    X_predict = predict_df.drop(columns=[column])
-    y_predict = rf_regressor.predict(X_predict)
-
-    df.loc[df[column].isna(), column] = y_predict
-
-    for col, encoder in encoded_columns.items():
-        df[col] = encoder.inverse_transform(df[col].astype(int))
-
-    # return df
+    
